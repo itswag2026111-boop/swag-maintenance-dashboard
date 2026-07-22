@@ -1,8 +1,11 @@
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.models import MaintenanceRequest, Attachment, FinanceRecord, AuditLog
 
 MODULE = "maintenance"
+SLA_DAYS = 3  # requests open longer than this are flagged overdue, matches the original app's SLA_DAYS
 
 # The real request lifecycle: branch submits -> admin reviews -> admin verifies
 # and forwards to finance (THIS is the only moment a FinanceRecord gets created,
@@ -25,6 +28,8 @@ ALL_STATUSES = [
 
 
 def shape_request(r: MaintenanceRequest) -> dict:
+    is_open = r.status not in (STATUS_COMPLETED, STATUS_CANCELLED)
+    days_old = (datetime.now(timezone.utc) - r.created_at).days if r.created_at else 0
     return {
         "id": r.id,
         "company": r.company,
@@ -34,7 +39,10 @@ def shape_request(r: MaintenanceRequest) -> dict:
         "status": r.status,
         "priority": r.priority,
         "assignees": [e.strip() for e in (r.assignees or "").split(",") if e.strip()],
+        "createdBy": r.created_by,
         "created": r.created_at.isoformat() if r.created_at else "",
+        "daysOld": days_old,
+        "isOverdue": is_open and days_old > SLA_DAYS,
     }
 
 
@@ -47,8 +55,11 @@ def get_request(db: Session, item_id: int) -> MaintenanceRequest | None:
     return db.query(MaintenanceRequest).filter(MaintenanceRequest.id == item_id).first()
 
 
-def create_request(db: Session, company: str, branch: str, category: str, detail: str, priority: str = "Normal") -> MaintenanceRequest:
-    req = MaintenanceRequest(company=company, branch=branch, category=category, detail=detail, priority=priority, status=STATUS_WAITING)
+def create_request(db: Session, company: str, branch: str, category: str, detail: str, priority: str = "Normal", created_by: str = "") -> MaintenanceRequest:
+    req = MaintenanceRequest(
+        company=company, branch=branch, category=category, detail=detail,
+        priority=priority, status=STATUS_WAITING, created_by=created_by,
+    )
     db.add(req)
     db.commit()
     db.refresh(req)

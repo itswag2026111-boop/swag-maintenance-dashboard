@@ -60,7 +60,7 @@ def create_request(
     user: AuthorizedUser = Depends(require_module_access(MODULE, "viewer")),  # any signed-in staff can raise a request
     db: Session = Depends(get_db),
 ):
-    req = maintenance_service.create_request(db, payload.company, payload.branch, payload.category, payload.detail, payload.priority)
+    req = maintenance_service.create_request(db, payload.company, payload.branch, payload.category, payload.detail, payload.priority, created_by=user.email)
     _log(db, user, "create", req.id, payload.detail[:80])
     return maintenance_service.shape_request(req)
 

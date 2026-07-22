@@ -89,6 +89,7 @@ class MaintenanceRequest(Base):
     status = Column(String, default="Waiting")
     priority = Column(String, default="Normal")
     assignees = Column(String, default="")  # CSV of emails
+    created_by = Column(String, default="")  # email of whoever raised it
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
