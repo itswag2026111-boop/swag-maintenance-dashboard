@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.orm import Session
 
-from app.auth.local_auth import create_access_token, hash_password, verify_password
+from app.auth.local_auth import create_access_token, get_current_user, hash_password, verify_password
 from app.database import get_db
-from app.models import User
+from app.models import User, UserRole
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -48,6 +48,26 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
 
     token = create_access_token(user.email, user.name)
     return AuthOut(access_token=token, email=user.email, name=user.name)
+
+
+@router.post("/bootstrap-admin", response_model=AuthOut)
+def bootstrap_admin(current=Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    One-time escape hatch: if NO admin exists anywhere in the system yet,
+    whoever calls this (while logged in) becomes admin of every module.
+    Once any admin exists, this always returns 403 - it can't be used to
+    take over an already-set-up system.
+    """
+    any_admin = db.query(UserRole).filter(UserRole.role == "admin").first()
+    if any_admin:
+        raise HTTPException(status_code=403, detail="An admin already exists. Ask them to grant you access.")
+
+    for module in ("inventory", "maintenance", "finance"):
+        db.add(UserRole(email=current.email, module=module, role="admin"))
+    db.commit()
+
+    token = create_access_token(current.email, current.name)
+    return AuthOut(access_token=token, email=current.email, name=current.name)
 
 
 @router.post("/login", response_model=AuthOut)

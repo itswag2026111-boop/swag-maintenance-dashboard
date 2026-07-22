@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.auth.rbac import AuthorizedUser, require_module_access
 from app.database import get_db
 from app.models import AuditLog
-from app.services import finance_service
+from app.services import finance_service, maintenance_service
 
 router = APIRouter(prefix="/api/finance", tags=["finance"])
 
@@ -47,9 +47,13 @@ def set_finance_status(
     user: AuthorizedUser = Depends(require_module_access(MODULE, "editor")),
     db: Session = Depends(get_db),
 ):
-    ok = finance_service.set_status(db, item_id, payload.status, approved_by=user.name)
-    if not ok:
+    row = finance_service.set_status(db, item_id, payload.status, approved_by=user.name)
+    if not row:
         raise HTTPException(status_code=404, detail="Finance record not found")
+
+    if row.request_id and payload.status in ("approved", "rejected"):
+        maintenance_service.sync_status_from_finance(db, row.request_id, payload.status)
+
     db.add(AuditLog(email=user.email, module=MODULE, action="set_status", item_id=str(item_id), detail=payload.status))
     db.commit()
     return {"ok": True}

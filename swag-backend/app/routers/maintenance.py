@@ -29,6 +29,10 @@ class AssignIn(BaseModel):
     emails: list[str]
 
 
+class SendToFinanceIn(BaseModel):
+    cost: str
+
+
 def _log(db: Session, user: AuthorizedUser, action: str, item_id, detail: str = ""):
     db.add(AuditLog(email=user.email, module=MODULE, action=action, item_id=str(item_id), detail=detail))
     db.commit()
@@ -100,6 +104,25 @@ def assign_technicians(
         raise HTTPException(status_code=404, detail="Request not found")
     _log(db, user, "assign", item_id, ", ".join(payload.emails))
     return {"ok": True}
+
+
+@router.post("/requests/{item_id}/send-to-finance")
+def send_to_finance(
+    item_id: int,
+    payload: SendToFinanceIn,
+    user: AuthorizedUser = Depends(require_module_access(MODULE, "admin")),  # only admin verifies + forwards
+    db: Session = Depends(get_db),
+):
+    record = maintenance_service.send_to_finance(db, item_id, payload.cost)
+    if not record:
+        raise HTTPException(status_code=404, detail="Request not found")
+    _log(db, user, "send_to_finance", item_id, f"cost={payload.cost}")
+    return {"ok": True, "financeRecordId": record.id}
+
+
+@router.get("/requests/{item_id}/activity")
+def get_activity(item_id: int, user: AuthorizedUser = Depends(require_module_access(MODULE, "viewer")), db: Session = Depends(get_db)):
+    return {"activity": maintenance_service.get_activity(db, item_id)}
 
 
 @router.get("/requests/{item_id}/attachments")

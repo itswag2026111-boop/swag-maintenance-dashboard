@@ -28,12 +28,12 @@ def create_record(db: Session, branch: str, category: str, cost: str, request_id
     return row
 
 
-def set_status(db: Session, item_id: int, status: str, approved_by: str = "") -> bool:
+def set_status(db: Session, item_id: int, status: str, approved_by: str = "") -> FinanceRecord | None:
     row = db.query(FinanceRecord).filter(FinanceRecord.id == item_id).first()
     if not row:
-        return False
+        return None
     row.status = status
     if approved_by:
         row.approved_by = approved_by
     db.commit()
-    return True
+    return row
