@@ -4,7 +4,7 @@ from sqlalchemy import inspect, text
 
 from app.config import settings
 from app.database import Base, engine
-from app.routers import inventory, maintenance, finance, me, admin, notifications, auth, lookups
+from app.routers import inventory, maintenance, finance, me, admin, notifications, auth, lookups, groups
 
 # create tables if they don't exist yet (fine for this size project;
 # switch to Alembic migrations once the schema starts changing often)
@@ -53,6 +53,7 @@ app.include_router(finance.router)
 app.include_router(admin.router)
 app.include_router(notifications.router)
 app.include_router(lookups.router)
+app.include_router(groups.router)
 
 
 @app.get("/health")

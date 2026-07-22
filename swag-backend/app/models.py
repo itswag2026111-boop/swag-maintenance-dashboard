@@ -109,6 +109,30 @@ class FinanceRecord(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class Group(Base):
+    """
+    A named bundle of permissions (like Odoo's Groups) - e.g. "Branch Manager",
+    "Finance Team". Define the module/role/branch combo once, then apply it
+    to any user in one click instead of ticking checkboxes every time.
+    """
+    __tablename__ = "groups"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class GroupModuleAccess(Base):
+    """One (module, role, branches) entry within a Group's permission template."""
+    __tablename__ = "group_module_access"
+
+    id = Column(Integer, primary_key=True)
+    group_id = Column(Integer, nullable=False, index=True)
+    module = Column(String, nullable=False)
+    role = Column(String, nullable=False)
+    branches = Column(String, nullable=True)
+
+
 class Comment(Base):
     """
     Chat-like discussion thread on any record. Two channels:
