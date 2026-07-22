@@ -15,6 +15,16 @@ class Settings(BaseSettings):
     database_url: str
     allowed_origins: str = "http://localhost:5173"
 
+    # Email notifications - optional. If smtp_host is blank, emails are
+    # silently skipped (no crash). Works with Gmail (smtp.gmail.com, port 587,
+    # use an "app password" not your real password), or any SMTP provider.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_use_tls: bool = True
+
     @field_validator("database_url")
     @classmethod
     def _fix_postgres_scheme(cls, v: str) -> str:

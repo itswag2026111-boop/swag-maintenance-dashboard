@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.auth.rbac import AuthorizedUser, require_module_access
 from app.database import get_db
 from app.models import AuditLog
-from app.services import finance_service, maintenance_service
+from app.services import finance_service, maintenance_service, email_service
 
 router = APIRouter(prefix="/api/finance", tags=["finance"])
 
@@ -16,11 +16,25 @@ class StatusIn(BaseModel):
     status: str  # 'approved' | 'rejected' | 'waiting for approval'
 
 
+class BulkStatusIn(BaseModel):
+    ids: list[int]
+    status: str
+
+
 class RecordIn(BaseModel):
     branch: str
     category: str
     cost: str
     request_id: int | None = None
+
+
+def _notify_requester(db: Session, request_id: int | None, status: str):
+    if not request_id or status not in ("approved", "rejected"):
+        return
+    maintenance_service.sync_status_from_finance(db, request_id, status)
+    req = maintenance_service.get_request(db, request_id)
+    if req and req.created_by:
+        email_service.notify_finance_decision(req.created_by, request_id, status)
 
 
 @router.get("")
@@ -51,9 +65,25 @@ def set_finance_status(
     if not row:
         raise HTTPException(status_code=404, detail="Finance record not found")
 
-    if row.request_id and payload.status in ("approved", "rejected"):
-        maintenance_service.sync_status_from_finance(db, row.request_id, payload.status)
+    _notify_requester(db, row.request_id, payload.status)
 
     db.add(AuditLog(email=user.email, module=MODULE, action="set_status", item_id=str(item_id), detail=payload.status))
     db.commit()
     return {"ok": True}
+
+
+@router.patch("/bulk-status")
+def bulk_set_status(
+    payload: BulkStatusIn,
+    user: AuthorizedUser = Depends(require_module_access(MODULE, "editor")),
+    db: Session = Depends(get_db),
+):
+    updated = 0
+    for item_id in payload.ids:
+        row = finance_service.set_status(db, item_id, payload.status, approved_by=user.name)
+        if row:
+            updated += 1
+            _notify_requester(db, row.request_id, payload.status)
+            db.add(AuditLog(email=user.email, module=MODULE, action="set_status", item_id=str(item_id), detail=f"bulk: {payload.status}"))
+    db.commit()
+    return {"ok": True, "updated": updated}

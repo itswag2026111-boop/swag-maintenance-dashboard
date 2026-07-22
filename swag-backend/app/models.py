@@ -109,7 +109,31 @@ class FinanceRecord(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
-class Attachment(Base):
+class Comment(Base):
+    """Chat-like discussion thread on any record (maintenance request for now)."""
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True)
+    module = Column(String, nullable=False)
+    item_id = Column(Integer, nullable=False, index=True)
+    email = Column(String, nullable=False)
+    text = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Lookup(Base):
+    """
+    Predefined dropdown values (branches, categories) instead of free-text
+    fields - keeps data consistent and typo-free. Admin manages these from
+    the Admin panel.
+    """
+    __tablename__ = "lookups"
+
+    id = Column(Integer, primary_key=True)
+    type = Column(String, nullable=False)   # 'branch' | 'category'
+    value = Column(String, nullable=False)
+
+    __table_args__ = (UniqueConstraint("type", "value", name="uq_lookup_type_value"),)
     """
     Generic file storage for both modules (asset photos, request attachments).
     File bytes live directly in Postgres - simplest thing that works on any

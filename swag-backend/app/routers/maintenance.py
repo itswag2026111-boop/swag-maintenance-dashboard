@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.auth.rbac import AuthorizedUser, require_module_access
 from app.database import get_db
 from app.models import AuditLog
-from app.services import maintenance_service
+from app.services import maintenance_service, comment_service, email_service
 
 router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
 
@@ -31,6 +31,10 @@ class AssignIn(BaseModel):
 
 class SendToFinanceIn(BaseModel):
     cost: str
+
+
+class CommentIn(BaseModel):
+    text: str
 
 
 def _log(db: Session, user: AuthorizedUser, action: str, item_id, detail: str = ""):
@@ -103,6 +107,11 @@ def assign_technicians(
     if not ok:
         raise HTTPException(status_code=404, detail="Request not found")
     _log(db, user, "assign", item_id, ", ".join(payload.emails))
+
+    req = maintenance_service.get_request(db, item_id)
+    for email in payload.emails:
+        email_service.notify_assigned(email, item_id, req.category, req.branch)
+
     return {"ok": True}
 
 
@@ -123,6 +132,23 @@ def send_to_finance(
 @router.get("/requests/{item_id}/activity")
 def get_activity(item_id: int, user: AuthorizedUser = Depends(require_module_access(MODULE, "viewer")), db: Session = Depends(get_db)):
     return {"activity": maintenance_service.get_activity(db, item_id)}
+
+
+@router.get("/requests/{item_id}/comments")
+def get_comments(item_id: int, user: AuthorizedUser = Depends(require_module_access(MODULE, "viewer")), db: Session = Depends(get_db)):
+    return {"comments": comment_service.list_comments(db, MODULE, item_id)}
+
+
+@router.post("/requests/{item_id}/comments")
+def post_comment(
+    item_id: int,
+    payload: CommentIn,
+    user: AuthorizedUser = Depends(require_module_access(MODULE, "viewer")),
+    db: Session = Depends(get_db),
+):
+    comment_service.add_comment(db, MODULE, item_id, user.email, payload.text)
+    _log(db, user, "comment", item_id, payload.text[:80])
+    return {"ok": True}
 
 
 @router.get("/requests/{item_id}/attachments")
