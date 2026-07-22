@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.rbac import AuthorizedUser, require_module_access
 from app.database import get_db
-from app.models import AuditLog
+from app.models import AuditLog, User
 from app.services import maintenance_service, comment_service, email_service
 
 router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
@@ -76,6 +76,8 @@ def update_status(
     user: AuthorizedUser = Depends(require_module_access(MODULE, "editor")),
     db: Session = Depends(get_db),
 ):
+    if user.branches:
+        raise HTTPException(status_code=403, detail="Branch accounts can't change status - use Support to request a change.")
     ok = maintenance_service.update_status(db, item_id, payload.status)
     if not ok:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -136,7 +138,9 @@ def get_activity(item_id: int, user: AuthorizedUser = Depends(require_module_acc
 
 @router.get("/requests/{item_id}/comments")
 def get_comments(item_id: int, user: AuthorizedUser = Depends(require_module_access(MODULE, "viewer")), db: Session = Depends(get_db)):
-    return {"comments": comment_service.list_comments(db, MODULE, item_id)}
+    if user.branches:
+        raise HTTPException(status_code=403, detail="Internal discussion isn't available for branch-restricted accounts. Use Support instead.")
+    return {"comments": comment_service.list_comments(db, MODULE, item_id, channel="internal")}
 
 
 @router.post("/requests/{item_id}/comments")
@@ -146,9 +150,36 @@ def post_comment(
     user: AuthorizedUser = Depends(require_module_access(MODULE, "viewer")),
     db: Session = Depends(get_db),
 ):
-    comment_service.add_comment(db, MODULE, item_id, user.email, payload.text)
+    if user.branches:
+        raise HTTPException(status_code=403, detail="Internal discussion isn't available for branch-restricted accounts. Use Support instead.")
+    comment_service.add_comment(db, MODULE, item_id, user.email, payload.text, channel="internal")
     _log(db, user, "comment", item_id, payload.text[:80])
     return {"ok": True}
+
+
+@router.get("/requests/{item_id}/support")
+def get_support_messages(item_id: int, user: AuthorizedUser = Depends(require_module_access(MODULE, "viewer")), db: Session = Depends(get_db)):
+    """Support channel - always available, this is where branch users ask for changes."""
+    return {"messages": comment_service.list_comments(db, MODULE, item_id, channel="support")}
+
+
+@router.post("/requests/{item_id}/support")
+def post_support_message(
+    item_id: int,
+    payload: CommentIn,
+    user: AuthorizedUser = Depends(require_module_access(MODULE, "viewer")),
+    db: Session = Depends(get_db),
+):
+    comment_service.add_comment(db, MODULE, item_id, user.email, payload.text, channel="support")
+    _log(db, user, "support_message", item_id, payload.text[:80])
+    return {"ok": True}
+
+
+@router.get("/assignable-users")
+def get_assignable_users(user: AuthorizedUser = Depends(require_module_access(MODULE, "editor")), db: Session = Depends(get_db)):
+    """List of registered accounts, for the technician-assignment dropdown."""
+    users = db.query(User).order_by(User.email).all()
+    return {"users": [{"email": u.email, "name": u.name} for u in users]}
 
 
 @router.get("/requests/{item_id}/attachments")

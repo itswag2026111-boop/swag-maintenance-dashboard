@@ -3,10 +3,10 @@ from sqlalchemy.orm import Session
 from app.models import Comment
 
 
-def list_comments(db: Session, module: str, item_id: int) -> list[dict]:
+def list_comments(db: Session, module: str, item_id: int, channel: str = "internal") -> list[dict]:
     rows = (
         db.query(Comment)
-        .filter(Comment.module == module, Comment.item_id == item_id)
+        .filter(Comment.module == module, Comment.item_id == item_id, Comment.channel == channel)
         .order_by(Comment.created_at.asc())
         .all()
     )
@@ -16,8 +16,8 @@ def list_comments(db: Session, module: str, item_id: int) -> list[dict]:
     ]
 
 
-def add_comment(db: Session, module: str, item_id: int, email: str, text: str) -> Comment:
-    c = Comment(module=module, item_id=item_id, email=email, text=text)
+def add_comment(db: Session, module: str, item_id: int, email: str, text: str, channel: str = "internal") -> Comment:
+    c = Comment(module=module, item_id=item_id, email=email, text=text, channel=channel)
     db.add(c)
     db.commit()
     db.refresh(c)

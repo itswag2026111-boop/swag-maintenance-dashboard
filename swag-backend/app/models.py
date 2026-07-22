@@ -110,7 +110,11 @@ class FinanceRecord(Base):
 
 
 class Comment(Base):
-    """Chat-like discussion thread on any record (maintenance request for now)."""
+    """
+    Chat-like discussion thread on any record. Two channels:
+    - 'internal': team discussion, hidden from branch-restricted viewers
+    - 'support': branch users ask for changes here; admins/editors reply
+    """
     __tablename__ = "comments"
 
     id = Column(Integer, primary_key=True)
@@ -118,6 +122,7 @@ class Comment(Base):
     item_id = Column(Integer, nullable=False, index=True)
     email = Column(String, nullable=False)
     text = Column(String, nullable=False)
+    channel = Column(String, default="internal")  # 'internal' | 'support'
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

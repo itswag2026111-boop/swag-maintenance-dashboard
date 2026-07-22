@@ -29,7 +29,13 @@ ALL_STATUSES = [
 
 def shape_request(r: MaintenanceRequest) -> dict:
     is_open = r.status not in (STATUS_COMPLETED, STATUS_CANCELLED)
-    days_old = (datetime.now(timezone.utc) - r.created_at).days if r.created_at else 0
+    days_old = 0
+    if r.created_at:
+        created = r.created_at
+        now = datetime.now(timezone.utc)
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        days_old = (now - created).days
     return {
         "id": r.id,
         "company": r.company,
