@@ -134,6 +134,9 @@ class Lookup(Base):
     value = Column(String, nullable=False)
 
     __table_args__ = (UniqueConstraint("type", "value", name="uq_lookup_type_value"),)
+
+
+class Attachment(Base):
     """
     Generic file storage for both modules (asset photos, request attachments).
     File bytes live directly in Postgres - simplest thing that works on any
