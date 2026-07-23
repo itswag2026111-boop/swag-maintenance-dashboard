@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.orm import Session
 
-from app.auth.local_auth import CurrentUser
+from app.auth.local_auth import CurrentUser, hash_password
 from app.auth.rbac import require_any_admin
 from app.database import get_db
-from app.models import AuditLog, UserRole
+from app.models import AuditLog, User, UserRole
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -15,6 +15,39 @@ class RoleIn(BaseModel):
     module: str  # 'inventory' | 'maintenance' | 'finance'
     role: str    # 'viewer' | 'editor' | 'admin'
     branches: str | None = None  # CSV, null = all branches
+
+
+class CreateUserIn(BaseModel):
+    email: EmailStr
+    name: str = ""
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def _min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+
+@router.post("/users")
+def create_user(
+    payload: CreateUserIn,
+    admin: CurrentUser = Depends(require_any_admin()),
+    db: Session = Depends(get_db),
+):
+    """Admin-only account creation. Self-registration is closed, so this
+    is now the only way new people get a login."""
+    email = payload.email.lower()
+    existing = db.query(User).filter(User.email == email).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="An account with this email already exists")
+
+    user = User(email=email, name=payload.name or email.split("@")[0], password_hash=hash_password(payload.password))
+    db.add(user)
+    db.add(AuditLog(email=admin.email, module="admin", action="create_user", item_id=None, detail=email))
+    db.commit()
+    return {"ok": True, "email": user.email}
 
 
 @router.get("/roles")

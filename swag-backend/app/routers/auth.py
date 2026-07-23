@@ -36,11 +36,17 @@ class AuthOut(BaseModel):
 
 @router.post("/register", response_model=AuthOut)
 def register(payload: RegisterIn, db: Session = Depends(get_db)):
-    email = payload.email.lower()
-    existing = db.query(User).filter(User.email == email).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="An account with this email already exists")
+    """
+    Bootstrap-only: this endpoint only works when the system has NO users
+    yet (the very first setup). Once even one account exists, self-signup
+    is closed forever - all further accounts must be created by an admin
+    via the Admin panel (POST /api/admin/users).
+    """
+    any_user = db.query(User).first()
+    if any_user:
+        raise HTTPException(status_code=403, detail="Self-registration is closed. Ask an admin to create your account.")
 
+    email = payload.email.lower()
     user = User(email=email, name=payload.name or email.split("@")[0], password_hash=hash_password(payload.password))
     db.add(user)
     db.commit()
