@@ -69,7 +69,9 @@ def require_module_access(module: str, min_role: str = "viewer"):
 
 def require_any_admin():
     """Gate for the role-management panel: user must be 'admin' in at
-    least one module (doesn't matter which)."""
+    least one module WITH NO branch restriction (a branch-scoped admin,
+    e.g. admin of only their own branch's inventory, must not be able to
+    grant/revoke access for the whole system)."""
 
     def _dependency(
         current: CurrentUser = Depends(get_current_user),
@@ -77,7 +79,7 @@ def require_any_admin():
     ) -> CurrentUser:
         is_admin = (
             db.query(UserRole)
-            .filter(UserRole.email == current.email, UserRole.role == "admin")
+            .filter(UserRole.email == current.email, UserRole.role == "admin", UserRole.branches.is_(None))
             .first()
             is not None
         )

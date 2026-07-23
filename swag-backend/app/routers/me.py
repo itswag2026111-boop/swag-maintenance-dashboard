@@ -15,5 +15,9 @@ def get_my_access(current: CurrentUser = Depends(get_current_user), db: Session 
         "email": current.email,
         "name": current.name,
         "modules": {r.module: {"role": r.role, "branches": r.branches} for r in rows},
-        "is_admin_anywhere": any(r.role == "admin" for r in rows),
+        # A branch-restricted admin (e.g. admin of just their own branch's
+        # inventory) should NOT get the global Access Management panel -
+        # that would let them grant/revoke access for the whole system.
+        # Only an unrestricted (all-branches) admin role counts here.
+        "is_admin_anywhere": any(r.role == "admin" and not r.branches for r in rows),
     }
