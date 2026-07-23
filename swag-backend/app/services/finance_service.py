@@ -12,6 +12,7 @@ def shape_record(r: FinanceRecord) -> dict:
         "cost": r.cost,
         "status": r.status,
         "approvedBy": r.approved_by,
+        "created": r.created_at.isoformat() if r.created_at else "",
     }
 
 
