@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float, LargeBinary, func, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, Float, LargeBinary, Text, func, UniqueConstraint
 
 from app.database import Base
 
@@ -14,6 +14,8 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     email = Column(String, unique=True, nullable=False, index=True)
     name = Column(String, default="")
+    phone = Column(String, default="")
+    avatar = Column(Text, nullable=True)  # base64 data URI, resized client-side before upload
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
