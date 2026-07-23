@@ -105,6 +105,8 @@ def assign_technicians(
     user: AuthorizedUser = Depends(require_module_access(MODULE, "editor")),
     db: Session = Depends(get_db),
 ):
+    if user.branches:
+        raise HTTPException(status_code=403, detail="Branch accounts can't assign technicians - use Support to request a change.")
     ok = maintenance_service.assign_technicians(db, item_id, payload.emails)
     if not ok:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -124,6 +126,8 @@ def send_to_finance(
     user: AuthorizedUser = Depends(require_module_access(MODULE, "admin")),  # only admin verifies + forwards
     db: Session = Depends(get_db),
 ):
+    if user.branches:
+        raise HTTPException(status_code=403, detail="Branch accounts can't forward requests to Finance.")
     record = maintenance_service.send_to_finance(db, item_id, payload.cost)
     if not record:
         raise HTTPException(status_code=404, detail="Request not found")
